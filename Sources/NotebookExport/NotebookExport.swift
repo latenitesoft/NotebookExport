@@ -9,9 +9,12 @@ public struct NotebookExport {
     }
     
     let exportRegexp = NSRegularExpression(#"^\s*//\s*export\s*$"#)         // Swift 5 raw String
-    
-    /// Parse the notebook and extract the source of the exportable cells (minus the comment line)
-    func extractExportableSources() throws -> [[String]] {
+    let installRegexp = NSRegularExpression(#"^\s*%install (.*)$"#)         // Swift 5 raw String
+
+    /// Parse the notebook and selects the cells of interest,
+    /// returning the content filtered and transformed by the supplied closure.
+    /// Parsed data is not cached, so multiple calls will read from the document again.
+    func processCells(contentTransform: (_ cellSource: [String]) -> [String]?) throws -> [[String]] {
         let data = try Data(contentsOf: filepath)
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         
@@ -25,21 +28,50 @@ public struct NotebookExport {
         }
         
         // Use compactMap to combine the filter and map we need
-        let exportableSources: [[String]] = cells.compactMap { cell in
-            //TODO: Extract %install cells to auto-generate dependencies
+        let selectedSources: [[String]] = cells.compactMap { cell in
             guard let source = cell["source"] as? [String] else { return nil }
+            return contentTransform(source)     // nil to ignore this cell
+        }
+        
+        return selectedSources
+    }
+
+    /// Parse the notebook and extract the source of the exportable cells (minus the comment line).
+    /// Parsed data is not cached.
+    func extractExportableSources() throws -> [[String]] {
+        return try processCells { source in
             guard exportRegexp.matches(source.first) else { return nil }
             return Array(source[1...])
         }
-        
-        return exportableSources
     }
-    
-    /// Update global Package.swift
-    func updatePackageSpec(at path: Path, packageName: String) throws {
-        //FIXME: derive dependencies from sources
 
-        // It would be nice if we could use PackageDescription to define the package and export the manifest
+    /// Parse the notebook and extract the source of the install cells.
+    /// Parsed data is not cached.
+    func extractInstallableSources() throws -> [[String]] {
+        return try processCells { source in
+            for line in source {
+                if installRegexp.matches(line) { return source }
+            }
+            return nil
+        }
+    }
+        
+    /// Extract dependencies from %install cells
+    func extractDependencies() throws -> [DependencyDescription] {
+        var dependencies: [DependencyDescription] = []
+        for _ /*cellSource*/ in try extractInstallableSources() {
+            /* Process each line */
+            /* Hardcoding it for now to test */
+            dependencies.append(.path)
+            dependencies.append(.just)
+        }
+        return dependencies
+    }
+
+    /// Update global Package.swift
+    func updatePackageSpec(at path: Path, packageName: String, dependencies: [DependencyDescription]) throws {
+        let dependencyPackages = (dependencies.map { return $0.description }).joined(separator: ",\n")
+        let dependencyNames = (dependencies.map { return "\($0.name.quoted)" }).joined(separator: ", ")
         let manifest = """
         // swift-tools-version:4.2
         import PackageDescription
@@ -50,13 +82,12 @@ public struct NotebookExport {
                 .library(name: "\(packageName)", targets: ["\(packageName)"]),
             ],
         dependencies: [
-            .package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1"),
-            .package(url: "https://github.com/JustHTTP/Just", from: "0.7.1")
+            \(dependencyPackages)
         ],
         targets: [
             .target(
                 name: "\(packageName)",
-                dependencies: ["Just", "Path"]),
+                dependencies: [\(dependencyNames)]),
             ]
         )
         """
@@ -77,11 +108,10 @@ public extension NotebookExport {
     
     /// Export as an additional source inside the specified package path
     @discardableResult
-    func toScript(inside packagePath: String = defaultPackagePath) -> ExportResult {
-        let path = Path(packagePath) ?? Path.cwd/packagePath
+    func toScript(inside packagePath: Path) -> ExportResult {
         let newname = filepath.basename(dropExtension: true) + ".swift"
-        let packageName = path.basename()
-        let destination = path/"Sources"/packageName/newname
+        let packageName = packagePath.basename()
+        let destination = packagePath/"Sources"/packageName/newname
         do {
             var module = """
             /*
@@ -97,17 +127,26 @@ public extension NotebookExport {
 
             try destination.parent.mkdir(.p)
             try module.write(to: destination, encoding: .utf8)
-            try updatePackageSpec(at: path, packageName: packageName)
+            try updatePackageSpec(at: packagePath, packageName: packageName, dependencies: DependencyDescription.defaults)
             return .success
         } catch {
             return .failure(reason: "Can't export \(filepath)")
         }
     }
     
-    /// Export as an independent package prepending the specified prefix to the name
+    /// Export as an additional source inside the specified package path
+    @discardableResult
+    func toScript(inside packagePath: String = defaultPackagePath) -> ExportResult {
+        return toScript(inside: Path.from(packagePath))
+    }
+    
+    /// Export as an independent package, prepending the specified prefix to the name
     @discardableResult
     func toPackage(prefix: String = defaultPackagePrefix) -> ExportResult {
-        return .failure(reason: "Not implemented yet")
+        // Create the isolated package
+        let packagePath = Path.from(prefix + filepath.basename(dropExtension: true))
+        let packageResult = toScript(inside: packagePath)
+        return packageResult
     }
     
     /// Perform both toScript() and toPackage()
@@ -123,7 +162,7 @@ public extension NotebookExport {
     }
     
     init(_ filename: String) {
-        self.init(Path(filename) ?? Path.cwd/filename)
+        self.init(Path.from(filename))
     }
 
 }

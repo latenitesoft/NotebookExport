@@ -2,14 +2,21 @@ import XCTest
 @testable import NotebookExport
 
 final class NotebookExportTests: XCTestCase {
-    func testExample() {
-        // This is an example of a functional test case.
-        // Use XCTAssert and related functions to verify your tests produce the correct
-        // results.
-        XCTAssertEqual(NotebookExport(filename: "/tmp/filename").filename, "/tmp/filename")
+    func testExtractInstallableSources() {
+        //FIXME: Generate known test file by writing a string to /tmp
+        let exporter = NotebookExport("/Users/pedro/code/s4tf/swift-jupyter/export_notebook/00_load_data.ipynb")
+        var hasSource = false
+        do {
+            let sources = try exporter.extractInstallableSources()
+            let lineCount = sources.first?.count ?? 0
+            hasSource = lineCount == 6
+        } catch {
+            XCTFail()
+        }
+        XCTAssertEqual(hasSource, true)
     }
 
     static var allTests = [
-        ("testExample", testExample),
+        ("testExtractInstallableSources", testExtractInstallableSources),
     ]
 }
