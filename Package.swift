@@ -20,5 +20,6 @@ let package = Package(
         .testTarget(
             name: "NotebookExportTests",
             dependencies: ["NotebookExport"]),
-    ]
+    ],
+    swiftLanguageVersions: [.version("5")]
 )
