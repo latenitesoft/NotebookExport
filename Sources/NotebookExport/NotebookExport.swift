@@ -34,6 +34,34 @@ public struct NotebookExport {
         
         return exportableSources
     }
+    
+    /// Update global Package.swift
+    func updatePackageSpec(at path: Path, packageName: String) throws {
+        //FIXME: derive dependencies from sources
+
+        // It would be nice if we could use PackageDescription to define the package and export the manifest
+        let manifest = """
+        // swift-tools-version:4.2
+        import PackageDescription
+
+        let package = Package(
+            name: "\(packageName)",
+            products: [
+                .library(name: "\(packageName)", targets: ["\(packageName)"]),
+            ],
+        dependencies: [
+            .package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1"),
+            .package(url: "https://github.com/JustHTTP/Just", from: "0.7.1")
+        ],
+        targets: [
+            .target(
+                name: "\(packageName)",
+                dependencies: ["Just", "Path"]),
+            ]
+        )
+        """
+        try manifest.write(to: path/"Package.swift")
+    }
 }
 
 // Public API
@@ -69,6 +97,7 @@ public extension NotebookExport {
 
             try destination.parent.mkdir(.p)
             try module.write(to: destination, encoding: .utf8)
+            try updatePackageSpec(at: path, packageName: packageName)
             return .success
         } catch {
             return .failure(reason: "Can't export \(filepath)")
