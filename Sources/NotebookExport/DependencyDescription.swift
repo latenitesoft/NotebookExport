@@ -6,17 +6,6 @@ struct DependencyDescription {
     let name: String
     let procedency: Procedency
     
-    /* Defaults, for testing */
-    static let path = DependencyDescription(name: "Path",
-                                            procedency: .remote(
-                                                url:     "https://github.com/mxcl/Path.swift",
-                                                version: .from("0.16.1")))
-    static let just = DependencyDescription(name: "Just",
-                                            procedency: .remote(
-                                                url:     "https://github.com/JustHTTP/Just",
-                                                version: .from("0.7.1")))
-    static let defaults = [path, just]
-    
     enum VersionSpec {
         case from(_ tag: String)
         //TODO: Add others
@@ -31,11 +20,13 @@ struct DependencyDescription {
     enum Procedency {
         case local(path: String)
         case remote(url: String, version: VersionSpec)
+        case rawSpec(spec: String)
         
         var description: String {
             switch self {
             case .local(let path): return "path: \(path)"
             case .remote(let url, let version): return "url: \(url.quoted), \(version.description)"
+            case .rawSpec(let spec): return spec
             }
         }
     }
@@ -44,5 +35,12 @@ struct DependencyDescription {
         return ".package(\(self.procedency.description))"
     }
     
+    init(name: String, procedency: Procedency) {
+        self.name = name
+        self.procedency = procedency
+    }
     
+    init(name: String, rawSpec spec: String) {
+        self.init(name: name, procedency: .rawSpec(spec: spec))
+    }
 }

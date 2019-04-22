@@ -8,8 +8,10 @@ public struct NotebookExport {
         case unexpectedNotebookFormat
     }
     
-    let exportRegexp = NSRegularExpression(#"^\s*//\s*export\s*$"#)         // Swift 5 raw String
-    let installRegexp = NSRegularExpression(#"^\s*%install (.*)$"#)         // Swift 5 raw String
+    let exportRegexp = NSRegularExpression(#"^\s*//\s*export\s*$"#)                 // Swift 5 raw String
+    
+    // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
+    let installRegexp = NSRegularExpression(#"^\s*%install '(.*)'\s(.*)$"#)         // Swift 5 raw String
 
     /// Parse the notebook and selects the cells of interest,
     /// returning the content filtered and transformed by the supplied closure.
@@ -55,22 +57,33 @@ public struct NotebookExport {
             return nil
         }
     }
-        
+    
     /// Extract dependencies from %install cells
     func extractDependencies() throws -> [DependencyDescription] {
         var dependencies: [DependencyDescription] = []
-        for _ /*cellSource*/ in try extractInstallableSources() {
-            /* Process each line */
-            /* Hardcoding it for now to test */
-            dependencies.append(.path)
-            dependencies.append(.just)
+        for cellSource in try extractInstallableSources() {
+            for line in cellSource {
+                //TODO: is there anything we can do about %install-swiftpm-flags?
+                // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
+                let lineRange = NSRange(line.startIndex..<line.endIndex, in: line)
+                installRegexp.enumerateMatches(in: line, options: [], range: lineRange) { (match, _, _) in
+                    guard let match = match else { return }
+                    guard match.numberOfRanges == 3 else { return }
+                    guard let specRange = Range(match.range(at: 1), in: line),
+                        let nameRange = Range(match.range(at: 2), in: line) else { return }
+                    
+                    let name = String(line[nameRange])
+                    let spec = String(line[specRange]).replacingOccurrences(of: "$cwd", with: Path.cwd.string)
+                    dependencies.append(DependencyDescription(name: name, rawSpec: spec))
+                }
+            }
         }
         return dependencies
     }
 
     /// Update global Package.swift
     func updatePackageSpec(at path: Path, packageName: String, dependencies: [DependencyDescription]) throws {
-        let dependencyPackages = (dependencies.map { return $0.description }).joined(separator: ",\n")
+        let dependencyPackages = (dependencies.map { return $0.description }).joined(separator: ",\n    ")
         let dependencyNames = (dependencies.map { return "\($0.name.quoted)" }).joined(separator: ", ")
         let manifest = """
         // swift-tools-version:4.2
@@ -127,7 +140,11 @@ public extension NotebookExport {
 
             try destination.parent.mkdir(.p)
             try module.write(to: destination, encoding: .utf8)
-            try updatePackageSpec(at: packagePath, packageName: packageName, dependencies: DependencyDescription.defaults)
+            
+            //FIXME: merge with existing dependencies, if appropriate
+            let packageDependencies = try extractDependencies()
+            try updatePackageSpec(at: packagePath, packageName: packageName, dependencies: packageDependencies)
+            
             return .success
         } catch {
             return .failure(reason: "Can't export \(filepath)")
