@@ -12,7 +12,7 @@ Use `swift-jupyter`'s `%install` directives to install this package, alongside a
 %install-location $cwd/swift-install
 %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
 %install '.package(url: "https://github.com/JustHTTP/Just", from: "0.7.1")' Just
-%install '.package(url: "https://github.com/latenitesoft/NotebookExport")' NotebookExport
+%install '.package(url: "https://github.com/latenitesoft/NotebookExport", .branch("master"))' NotebookExport
 ```
 
 For more details, please refer to [swift-jupyter](https://github.com/google/swift-jupyter) installation and usage guides.
