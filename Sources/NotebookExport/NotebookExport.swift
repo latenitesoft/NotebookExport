@@ -120,8 +120,11 @@ public extension NotebookExport {
     }
     
     /// Export as an additional source inside the specified package path
+    /// If mergingDependencies is true and a Package.swift file already exists
+    /// at the package location, merge the detected dependencies with the ones
+    /// already in the package.
     @discardableResult
-    func toScript(inside packagePath: Path) -> ExportResult {
+    func toScript(inside packagePath: Path, mergingDependencies: Bool = true) -> ExportResult {
         let newname = filepath.basename(dropExtension: true) + ".swift"
         let packageName = packagePath.basename()
         let destination = packagePath/"Sources"/packageName/newname
@@ -141,8 +144,14 @@ public extension NotebookExport {
             try destination.parent.mkdir(.p)
             try module.write(to: destination, encoding: .utf8)
             
-            //FIXME: merge with existing dependencies, if appropriate
-            let packageDependencies = try extractDependencies()
+            let notebookDependencies = try extractDependencies()
+            let packageDependencies: [DependencyDescription]
+            if mergingDependencies {
+                let existingDependencies: Set<DependencyDescription> = Set(DependencyDescription.fromPackage(at: packagePath))
+                packageDependencies = Array(existingDependencies.union(Set(notebookDependencies)))
+            } else {
+                packageDependencies = notebookDependencies
+            }
             try updatePackageSpec(at: packagePath, packageName: packageName, dependencies: packageDependencies)
             
             return .success
@@ -153,8 +162,8 @@ public extension NotebookExport {
     
     /// Export as an additional source inside the specified package path
     @discardableResult
-    func toScript(inside packagePath: String = defaultPackagePath) -> ExportResult {
-        return toScript(inside: Path.from(packagePath))
+    func toScript(inside packagePath: String = defaultPackagePath, mergingDependencies: Bool = true) -> ExportResult {
+        return toScript(inside: Path.from(packagePath), mergingDependencies: mergingDependencies)
     }
     
     /// Export as an independent package, prepending the specified prefix to the name
@@ -162,7 +171,7 @@ public extension NotebookExport {
     func toPackage(prefix: String = defaultPackagePrefix) -> ExportResult {
         // Create the isolated package
         let packagePath = Path.from(prefix + filepath.basename(dropExtension: true))
-        let packageResult = toScript(inside: packagePath)
+        let packageResult = toScript(inside: packagePath, mergingDependencies: false)
         return packageResult
     }
     

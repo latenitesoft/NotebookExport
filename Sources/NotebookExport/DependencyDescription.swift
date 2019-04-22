@@ -1,46 +1,51 @@
-// DependencyDescription
+import Foundation
+import Path
 
-// It would be nice if we could use SPM's PackageDescription to parse and generate Package.swift.
-// I didn't find an easy way to do it. Building the package manager as a library seems too much.
-struct DependencyDescription {
+struct DependencyDescription : Hashable {
     let name: String
-    let procedency: Procedency
+    let rawSpec: String
     
-    enum VersionSpec {
-        case from(_ tag: String)
-        //TODO: Add others
-        
-        var description: String {
-            switch self {
-            case .from(let tag): return "from: \(tag.quoted)"
-            }
+    var description: String { return rawSpec }
+}
+
+extension DependencyDescription {
+    /// "Parses" package for dependencies.
+    /// Simple implementation - we run a regexp against .package() lines
+    /// that must appear in separate lines.
+    static func fromPackage(at packagePath: Path) -> [DependencyDescription] {
+        do {
+            let packageContents = try String(contentsOf: packagePath/"Package.swift")
+            return self.fromPackageContents(packageContents)
+        } catch {
+            // Possibly the file doesn't exist
+            return []
         }
     }
     
-    enum Procedency {
-        case local(path: String)
-        case remote(url: String, version: VersionSpec)
-        case rawSpec(spec: String)
+    static func fromPackageContents(_ packageContents: String) -> [DependencyDescription] {
+        //  dependencies: [
+        //     .package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1"),
+        //     .package(url: "https://github.com/JustHTTP/Just", from: "0.7.1")
+        //  ],
+        let packageRegexp = NSRegularExpression(#"^\s*(.package\(\w+:\s*"([^"]*)"(.*)\)),?$"#)
         
-        var description: String {
-            switch self {
-            case .local(let path): return "path: \(path)"
-            case .remote(let url, let version): return "url: \(url.quoted), \(version.description)"
-            case .rawSpec(let spec): return spec
+        var dependencies: [DependencyDescription] = []
+        for line in packageContents.split(separator: "\n").map({ String($0) }) {
+            let range = NSRange(line.startIndex ..< line.endIndex, in: line)
+            packageRegexp.enumerateMatches(in: line, options: [], range: range) { (match, _, _) in
+                guard let match = match else { return }
+                guard match.numberOfRanges == 4 else { return }
+                guard let specRange = Range(match.range(at: 1), in: line),
+                    let urlRange = Range(match.range(at: 2), in: line) else { return }
+                
+                let spec = String(line[specRange])
+                let location = String(line[urlRange])
+                let url = URL(string: location) ?? URL(fileURLWithPath: location)
+                let name = url.deletingPathExtension().lastPathComponent
+                dependencies.append(DependencyDescription(name: name, rawSpec: spec))
             }
+
         }
-    }
-    
-    var description: String {
-        return ".package(\(self.procedency.description))"
-    }
-    
-    init(name: String, procedency: Procedency) {
-        self.name = name
-        self.procedency = procedency
-    }
-    
-    init(name: String, rawSpec spec: String) {
-        self.init(name: name, procedency: .rawSpec(spec: spec))
+        return dependencies
     }
 }
