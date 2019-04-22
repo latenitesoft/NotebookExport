@@ -58,24 +58,30 @@ public struct NotebookExport {
         }
     }
     
+    func dependencyFromInstallLine(_ line: String) -> [DependencyDescription] {
+        //TODO: is there anything we can do about %install-swiftpm-flags?
+        // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
+        let lineRange = NSRange(line.startIndex..<line.endIndex, in: line)
+        var dependencies: [DependencyDescription] = []
+        installRegexp.enumerateMatches(in: line, options: [], range: lineRange) { (match, _, _) in
+            guard let match = match else { return }
+            guard match.numberOfRanges == 3 else { return }
+            guard let specRange = Range(match.range(at: 1), in: line),
+                let nameRange = Range(match.range(at: 2), in: line) else { return }
+            
+            let name = String(line[nameRange])
+            let spec = String(line[specRange]).replacingOccurrences(of: "$cwd", with: Path.cwd.string)
+            dependencies.append(DependencyDescription(name: name, rawSpec: spec))
+        }
+        return dependencies
+    }
+    
     /// Extract dependencies from %install cells
     func extractDependencies() throws -> [DependencyDescription] {
         var dependencies: [DependencyDescription] = []
         for cellSource in try extractInstallableSources() {
             for line in cellSource {
-                //TODO: is there anything we can do about %install-swiftpm-flags?
-                // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
-                let lineRange = NSRange(line.startIndex..<line.endIndex, in: line)
-                installRegexp.enumerateMatches(in: line, options: [], range: lineRange) { (match, _, _) in
-                    guard let match = match else { return }
-                    guard match.numberOfRanges == 3 else { return }
-                    guard let specRange = Range(match.range(at: 1), in: line),
-                        let nameRange = Range(match.range(at: 2), in: line) else { return }
-                    
-                    let name = String(line[nameRange])
-                    let spec = String(line[specRange]).replacingOccurrences(of: "$cwd", with: Path.cwd.string)
-                    dependencies.append(DependencyDescription(name: name, rawSpec: spec))
-                }
+                dependencies.append(contentsOf: dependencyFromInstallLine(line))
             }
         }
         return dependencies

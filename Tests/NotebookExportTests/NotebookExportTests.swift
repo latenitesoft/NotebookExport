@@ -2,18 +2,15 @@ import XCTest
 @testable import NotebookExport
 
 final class NotebookExportTests: XCTestCase {
-    func testExtractInstallableSources() {
-        //FIXME: Generate known test file by writing a string to /tmp
-        let exporter = NotebookExport("/Users/pedro/code/s4tf/swift-jupyter/export_notebook/00_load_data.ipynb")
-        var hasSource = false
-        do {
-            let sources = try exporter.extractInstallableSources()
-            let lineCount = sources.first?.count ?? 0
-            hasSource = lineCount == 6
-        } catch {
-            XCTFail()
-        }
-        XCTAssertEqual(hasSource, true)
+    func testExtractDependenciesFromLine() {
+        let exporter = NotebookExport("/tmp/")
+        
+        var
+        installLine = #"%install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path"#
+        XCTAssert(exporter.dependencyFromInstallLine(installLine).first?.name == "Path")
+        
+        installLine = #"%install '.package(url: "https://github.com/latenitesoft/NotebookExport", .branch("master"))' NotebookExport"#
+        XCTAssert(exporter.dependencyFromInstallLine(installLine).first?.name == "NotebookExport")
     }
 
     func testExtractDependenciesFromContents() {
@@ -52,6 +49,7 @@ final class NotebookExportTests: XCTestCase {
     }
 
     static var allTests = [
-        ("testExtractInstallableSources", testExtractInstallableSources),
+        ("testExtractDependenciesFromLine", testExtractDependenciesFromLine),
+        ("testExtractDependenciesFromContents", testExtractDependenciesFromContents),
     ]
 }
