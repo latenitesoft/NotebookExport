@@ -25,23 +25,10 @@ Mark the cells you wish to export with a `//export` comment in the first line of
 
 ```Swift
 //export
-@discardableResult
-public func shellCommand(_ launchPath: String, _ arguments: [String]) -> String
+
+public func notebookFunction()
 {
-    let task = Process()
-    task.executableURL = URL(fileURLWithPath: launchPath)
-    task.arguments = arguments
-
-    let pipe = Pipe()
-    task.standardOutput = pipe
-    do {
-        try task.run()
-    } catch {
-        print("Unexpected error: \(error).")
-    }
-
-    let data = pipe.fileHandleForReading.readDataToEndOfFile()
-    return String(data: data, encoding: String.Encoding.utf8) ?? ""
+	/* Code */
 }
 ```
 
