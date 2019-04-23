@@ -172,12 +172,53 @@ public extension NotebookExport {
         return toScript(inside: Path.from(packagePath), mergingDependencies: mergingDependencies)
     }
     
+    /// Copy sources from previously exported notebooks this one explicitly depends on.
+    internal
+    func copySourcesFromLocalDependencies(withPrefix prefix: String, inside packagePath: Path) {
+        do {
+            // Parse dependencies again and copy sources from local (i.e., path:) ones
+            // with the same prefix in the same parent directory.
+            let localSpec = NSRegularExpression(#"^\s*.package\(path:\s*"([^"]*)"(.*)\)$"#)
+            try extractDependencies().forEach { dependency in
+                guard dependency.name.hasPrefix(prefix) else { return }
+                let spec = dependency.rawSpec
+                let range = NSRange(spec.startIndex ..< spec.endIndex, in: spec)
+                localSpec.enumerateMatches(in: spec, options: [], range: range) { (match, _, _) in
+                    guard let match = match else { return }
+                    guard match.numberOfRanges == 3 else { return }
+                    guard let pathRange = Range(match.range(at: 1), in: spec) else { return }
+                    
+                    let path = Path.from(String(spec[pathRange]))
+                    guard path.parent == packagePath.parent else { return }
+                    
+                    // Do copy files
+                    do {
+                        let packageName = packagePath.basename()
+                        let destination = packagePath/"Sources"/packageName
+                        for entry in try (path/"Sources"/dependency.name).ls() where entry.kind == .file {
+                            try entry.path.copy(into: destination)
+                        }
+                    } catch {
+                        /* Ignore file */
+                    }
+                }
+            }
+        } catch {
+            // pass
+        }
+    }
+    
     /// Export as an independent package, prepending the specified prefix to the name
     @discardableResult
     func toPackage(prefix: String = defaultPackagePrefix) -> ExportResult {
         // Create the isolated package
         let packagePath = Path.from(prefix + filepath.basename(dropExtension: true))
         let packageResult = toScript(inside: packagePath, mergingDependencies: false)
+        guard case .success = packageResult else { return packageResult }
+        
+        // Should we do this optional?
+        copySourcesFromLocalDependencies(withPrefix: prefix, inside: packagePath)
+        
         return packageResult
     }
     
