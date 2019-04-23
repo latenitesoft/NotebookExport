@@ -4,6 +4,13 @@ import Path
 public struct NotebookExport {
     let filepath: Path
     
+    struct DependencyDescription : Hashable {
+        let name: String
+        let rawSpec: String
+        
+        var description: String { return rawSpec }
+    }
+    
     public enum NotebookExportError: Error {
         case unexpectedNotebookFormat
     }
