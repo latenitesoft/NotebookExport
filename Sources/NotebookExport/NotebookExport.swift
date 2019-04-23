@@ -112,15 +112,8 @@ public struct NotebookExport {
         """
         try manifest.write(to: path/"Package.swift")
     }
-}
-
-// Public API
-public extension NotebookExport {
-    // Using different names than the Python version to avoid conflicts for now
-    static let defaultPackagePath = "ExportedNotebooks"
-    static let defaultPackagePrefix = "ExportedNotebook_"
     
-    enum ExportResult {
+    public enum ExportResult {
         case success
         case failure(reason: String)
     }
@@ -130,7 +123,7 @@ public extension NotebookExport {
     /// at the package location, merge the detected dependencies with the ones
     /// already in the package.
     @discardableResult
-    func toScript(inside packagePath: Path, mergingDependencies: Bool = true) -> ExportResult {
+    func toScript(inside packagePath: Path) -> ExportResult {
         let newname = filepath.basename(dropExtension: true) + ".swift"
         let packageName = packagePath.basename()
         let destination = packagePath/"Sources"/packageName/newname
@@ -146,18 +139,11 @@ public extension NotebookExport {
             for cellSource in try extractExportableSources() {
                 module.append("\n" + cellSource.joined() + "\n")
             }
-
+            
             try destination.parent.mkdir(.p)
             try module.write(to: destination, encoding: .utf8)
             
-            let notebookDependencies = try extractDependencies()
-            let packageDependencies: [DependencyDescription]
-            if mergingDependencies {
-                let existingDependencies: Set<DependencyDescription> = Set(DependencyDescription.fromPackage(at: packagePath))
-                packageDependencies = Array(existingDependencies.union(Set(notebookDependencies)))
-            } else {
-                packageDependencies = notebookDependencies
-            }
+            let packageDependencies = try extractDependencies()
             try updatePackageSpec(at: packagePath, packageName: packageName, dependencies: packageDependencies)
             
             return .success
@@ -166,14 +152,7 @@ public extension NotebookExport {
         }
     }
     
-    /// Export as an additional source inside the specified package path
-    @discardableResult
-    func toScript(inside packagePath: String = defaultPackagePath, mergingDependencies: Bool = true) -> ExportResult {
-        return toScript(inside: Path.from(packagePath), mergingDependencies: mergingDependencies)
-    }
-    
     /// Copy sources from previously exported notebooks this one explicitly depends on.
-    internal
     func copySourcesFromLocalDependencies(withPrefix prefix: String, inside packagePath: Path) {
         do {
             // Parse dependencies again and copy sources from local (i.e., path:) ones
@@ -207,13 +186,20 @@ public extension NotebookExport {
             // pass
         }
     }
+
+}
+
+// Public API
+public extension NotebookExport {
+    // Using different names than fastai's Python version to avoid conflicts for now
+    static let defaultPackagePrefix = "ExportedNotebook_"
     
     /// Export as an independent package, prepending the specified prefix to the name
     @discardableResult
     func toPackage(prefix: String = defaultPackagePrefix) -> ExportResult {
         // Create the isolated package
         let packagePath = Path.from(prefix + filepath.basename(dropExtension: true))
-        let packageResult = toScript(inside: packagePath, mergingDependencies: false)
+        let packageResult = toScript(inside: packagePath)
         guard case .success = packageResult else { return packageResult }
         
         // Should we do this optional?
@@ -222,14 +208,6 @@ public extension NotebookExport {
         return packageResult
     }
     
-    /// Perform both toScript() and toPackage()
-    @discardableResult
-    func export(inside packagePath: String = defaultPackagePath, independentPackagePrefix: String = defaultPackagePrefix) -> ExportResult {
-        let firstResult = toScript(inside: packagePath)
-        guard case .success = firstResult else { return firstResult }
-        return toPackage(prefix: independentPackagePrefix)
-    }
-
     init(_ filepath: Path) {
         self.filepath = filepath
     }
