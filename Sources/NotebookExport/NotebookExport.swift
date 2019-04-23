@@ -196,7 +196,7 @@ public extension NotebookExport {
     
     /// Export as an independent package, prepending the specified prefix to the name
     @discardableResult
-    func toPackage(prefix: String = defaultPackagePrefix) -> ExportResult {
+    func export(usingPrefix prefix: String = defaultPackagePrefix) -> ExportResult {
         // Create the isolated package
         let packagePath = Path.from(prefix + filepath.basename(dropExtension: true))
         let packageResult = toScript(inside: packagePath)
