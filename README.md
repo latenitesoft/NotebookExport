@@ -12,7 +12,7 @@ Use `swift-jupyter`'s `%install` directives to install this package, alongside a
 %install-location $cwd/swift-install
 %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
 %install '.package(url: "https://github.com/JustHTTP/Just", from: "0.7.1")' Just
-%install '.package(url: "https://github.com/latenitesoft/NotebookExport", .branch("master"))' NotebookExport
+%install '.package(url: "https://github.com/latenitesoft/NotebookExport", .branch("fastai"))' NotebookExport
 ```
 
 For more details, please refer to [swift-jupyter](https://github.com/google/swift-jupyter) installation and usage guides.
@@ -32,7 +32,7 @@ public func notebookFunction()
 }
 ```
 
-### Export cells (default paths)
+### Export cells as package (default name)
 
 To export all marked cells, import the `NotebookExport` package in your S4TF notebook and use it in notebook cells like so:
 
@@ -43,38 +43,16 @@ let exporter = NotebookExport(Path.cwd/"swift-notebook.ipynb")
 ```
 
 ```Swift
-print(exporter.toPackage())
-```
-
-`toPackage()` exports marked cells from the notebook with the name you specified to a new Swift package with the name `ExportedNotebook_<notebook_name>` (minus the `.ipynb` extension). You can then `%install` that package in other notebooks you are working on.
-
-```Swift
-print(exporter.toScript())
-```
-
-`toScript()` adds the exportable cells from the notebook as a source Swift file inside the package `ExportedNotebooks`, which may already exist. You can add multiple scripts to the package as you work on a particular task. Importing that package (in another notebook, or in a different Swift environment altogether) will allow you to reuse the code from all the notebooks you exported from.
-
-To perform both operations, simply use the `export` convenience function:
-
-```Swift
 print(exporter.export())
 ```
 
-### Specify destinations
+This exports marked cells from the notebook with the name you specified to a new Swift package with the name `ExportedNotebook_<notebook_name>` (minus the `.ipynb` extension). You can then `%install` that package in other notebooks you are working on.
+
+### Specify custom package prefix
 
 ```Swift
-print(exporter.toPackage(prefix: "MyProject"))
+print(exporter.export(usingPrefix: "MyProject"))
 ```
 
-Creates `MyProject_<notebook_name>` package.
-
-```Swift
-print(exporter.toScript(inside: "MySwiftNotebooks"))
-```
-
-Adds the source code of the notebook's exported cells to a `MySwiftNotebooks` package, which may already exist.
-
-```Swift
-print(exporter.toScript(inside: "MySwiftNotebooks", independentPackagePrefix: "MyProject"))
-```
+Exports to a package called `MyProject_<notebook_name>`.
 
