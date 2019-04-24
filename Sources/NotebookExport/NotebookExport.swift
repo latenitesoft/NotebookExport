@@ -159,8 +159,9 @@ public struct NotebookExport {
         }
     }
     
-    /// Copy sources from previously exported notebooks this one explicitly depends on.
-    func copySourcesFromLocalDependencies(withPrefix prefix: String, inside packagePath: Path) {
+    /// Hardlink sources from previously exported notebooks this one explicitly depends on.
+    func unwrapSourcesFromLocalDependencies(withPrefix prefix: String, inside packagePath: Path) -> ExportResult {
+        var result: ExportResult = .success
         do {
             // Parse dependencies again and copy sources from local (i.e., path:) ones
             // with the same prefix in the same parent directory.
@@ -182,16 +183,17 @@ public struct NotebookExport {
                         let packageName = packagePath.basename()
                         let destination = packagePath/"Sources"/packageName
                         for entry in try (path/"Sources"/dependency.name).ls() where entry.kind == .file {
-                            try entry.path.copy(into: destination)
+                            try entry.path.link(into: destination)
                         }
-                    } catch {
-                        /* Ignore file */
+                    } catch let e {
+                        result = .failure(reason: e.localizedDescription)
                     }
                 }
             }
-        } catch {
-            // pass
+        } catch let e {
+            result = .failure(reason: e.localizedDescription)
         }
+        return result
     }
 
 }
@@ -210,9 +212,7 @@ public extension NotebookExport {
         guard case .success = packageResult else { return packageResult }
         
         // Should we do this optional?
-        copySourcesFromLocalDependencies(withPrefix: prefix, inside: packagePath)
-        
-        return packageResult
+        return unwrapSourcesFromLocalDependencies(withPrefix: prefix, inside: packagePath)
     }
     
     init(_ filepath: Path) {
