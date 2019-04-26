@@ -169,7 +169,7 @@ public struct NotebookExport {
         }
     }
     
-    /// Hardlink sources from previously exported notebooks this one explicitly depends on.
+    /// Copy sources from previously exported notebooks this one explicitly depends on.
     func unwrapSourcesFromLocalDependencies(withPrefix prefix: String, inside packagePath: Path) -> ExportResult {
         var result: ExportResult = .success
         do {
@@ -193,7 +193,7 @@ public struct NotebookExport {
                         let packageName = packagePath.basename()
                         let destination = packagePath/"Sources"/packageName
                         for entry in try (path/"Sources"/dependency.name).ls() where entry.kind == .file {
-                            try entry.path.link(into: destination)
+                            try entry.path.copy(into: destination, overwrite: true)
                         }
                     } catch let e {
                         result = .failure(reason: e.localizedDescription)
