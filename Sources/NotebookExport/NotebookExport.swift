@@ -210,9 +210,9 @@ public struct NotebookExport {
 
 // Public API
 public extension NotebookExport {
-    // Using different names than fastai's Python version to avoid conflicts for now
-    static let defaultPackagePrefix = "ExportedNotebook_"
-    
+    static let version = "0.4.0"
+    static let defaultPackagePrefix = "FastaiNotebook_"
+
     /// Export as an independent package, prepending the specified prefix to the name
     @discardableResult
     func export(usingPrefix prefix: String = defaultPackagePrefix) -> ExportResult {
