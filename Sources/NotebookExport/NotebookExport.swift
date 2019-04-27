@@ -4,6 +4,8 @@ import Path
 public struct NotebookExport {
     let filepath: Path
     
+    var scriptName: String { return filepath.basename(dropExtension: true) + ".swift" }
+    
     struct DependencyDescription : Hashable {
         let name: String
         let rawSpec: String
@@ -141,9 +143,8 @@ public struct NotebookExport {
     /// already in the package.
     @discardableResult
     func toScript(inside packagePath: Path) -> ExportResult {
-        let newname = filepath.basename(dropExtension: true) + ".swift"
         let packageName = packagePath.basename()
-        let destination = packagePath/"Sources"/packageName/newname
+        let destination = packagePath/"Sources"/packageName/scriptName
         do {
             var module = """
             /*
@@ -206,11 +207,30 @@ public struct NotebookExport {
         return result
     }
 
+    /// Update this notebook's source into other notebooks that use it.
+    func updatePackages(withPrefix prefix: String, fromPackage packagePath: Path) -> ExportResult {
+        let scriptSource = packagePath/"Sources"/packagePath.basename()/scriptName
+        var currentTargetPath: Path? = nil
+        do {
+            for entry in try (packagePath.parent).ls() where entry.kind == .directory && entry.path.basename().hasPrefix(prefix) {
+                if entry.path == packagePath { continue }
+                let packageName = entry.path.basename()
+                let targetNotebookPath = (entry.path)/"Sources"/packageName/scriptName
+                currentTargetPath = targetNotebookPath
+                guard targetNotebookPath.exists else { continue }
+                
+                try scriptSource.copy(to: targetNotebookPath, overwrite: true)
+            }
+        } catch let e {
+            return .failure(reason: e.localizedDescription + "\n" + "Attempting to copy \(scriptSource) to \(String(describing: currentTargetPath))")
+        }
+        return .success
+    }
 }
 
 // Public API
 public extension NotebookExport {
-    static let version = "0.4.0"
+    static let version = "0.5.0"
     static let defaultPackagePrefix = "FastaiNotebook_"
 
     /// Export as an independent package, prepending the specified prefix to the name
@@ -221,8 +241,10 @@ public extension NotebookExport {
         let packageResult = toScript(inside: packagePath)
         guard case .success = packageResult else { return packageResult }
         
-        // Should we do this optional?
-        return unwrapSourcesFromLocalDependencies(withPrefix: prefix, inside: packagePath)
+        let unwrapResult = unwrapSourcesFromLocalDependencies(withPrefix: prefix, inside: packagePath)
+        guard case .success = unwrapResult else { return unwrapResult }
+        
+        return updatePackages(withPrefix: prefix, fromPackage: packagePath)
     }
     
     init(_ filepath: Path) {
