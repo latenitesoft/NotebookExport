@@ -1,27 +1,11 @@
 import Foundation
 import Path
 
+
 public struct NotebookExport {
     let filepath: Path
     
     var scriptName: String { return filepath.basename(dropExtension: true) + ".swift" }
-    
-    struct DependencyDescription : Hashable {
-        let name: String
-        let rawSpec: String
-        
-        func spec(relativeTo path: Path) -> String {
-            let localSpec = NSRegularExpression(#"^\s*.package\(path:\s*"([^"]*)"(.*)\)$"#)
-            let range = NSRange(rawSpec.startIndex ..< rawSpec.endIndex, in: rawSpec)
-            guard let match = localSpec.firstMatch(in: rawSpec, options: [], range: range) else { return rawSpec }
-            guard match.numberOfRanges == 3 else { return rawSpec }
-            guard let pathRange = Range(match.range(at: 1), in: rawSpec) else { return rawSpec }
-            
-            let absolutePath = Path.from(String(rawSpec[pathRange]))
-            let relativePath = absolutePath.relative(to: path)
-            return rawSpec.replacingCharacters(in: pathRange, with: relativePath)
-        }
-    }
     
     public enum NotebookExportError: Error {
         case unexpectedNotebookFormat
@@ -108,27 +92,8 @@ public struct NotebookExport {
 
     /// Update global Package.swift
     func updatePackageSpec(at path: Path, packageName: String, dependencies: [DependencyDescription]) throws {
-        let dependencyPackages = (dependencies.map { return $0.spec(relativeTo: path) }).joined(separator: ",\n    ")
-        let dependencyNames = (dependencies.map { return "\($0.name.quoted)" }).joined(separator: ", ")
-        let manifest = """
-        // swift-tools-version:4.2
-        import PackageDescription
-
-        let package = Package(
-            name: "\(packageName)",
-            products: [
-                .library(name: "\(packageName)", targets: ["\(packageName)"]),
-            ],
-        dependencies: [
-            \(dependencyPackages)
-        ],
-        targets: [
-            .target(
-                name: "\(packageName)",
-                dependencies: [\(dependencyNames)]),
-            ]
-        )
-        """
+        let packageManifest = PackageManifest(packagePath: path, dependencies: dependencies)
+        let manifest = packageManifest.manifest
         try manifest.write(to: path/"Package.swift")
     }
     
