@@ -29,6 +29,18 @@ extension NSRegularExpression {
     func matches(_ string: String?, options: NSRegularExpression.MatchingOptions = []) -> Bool {
         return firstMatch(in: string, options: options) != nil
     }
+    
+    func groupsOfFirstMatch(in string: String?, options: NSRegularExpression.MatchingOptions = []) -> [String]? {
+        guard let string = string else { return nil }
+        guard let match = self.firstMatch(in: string, options: options) else { return nil }
+        var groups: [String] = []
+        for i in 1..<match.numberOfRanges {
+            guard let range = Range(match.range(at: i), in: string) else { continue }
+            let group = String(string[range])
+            groups.append(group)
+        }
+        return groups
+    }
 }
 
 extension Path {

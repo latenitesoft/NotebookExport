@@ -85,11 +85,7 @@ public struct NotebookExport {
     /// Parsed data is not cached.
     func extractExecutableSources() throws -> [CellSource] {
         return try processCells { source in
-            guard let line = source.first else { return nil }
-            guard let match = executableRegexp.firstMatch(in: line) else { return nil }
-            guard match.numberOfRanges == 2 else { return nil }
-            guard let nameRange = Range(match.range(at: 1), in: line) else { return nil }
-            let executableName = String(line[nameRange])
+            guard let executableName = executableRegexp.groupsOfFirstMatch(in: source.first)?.first else { return nil }
             return CellSource(name: executableName, lines: Array(source[1...]))
         }
     }
