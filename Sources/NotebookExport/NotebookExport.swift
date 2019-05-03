@@ -11,15 +11,34 @@ public struct NotebookExport {
         case unexpectedNotebookFormat
     }
     
-    let exportRegexp = NSRegularExpression(#"^\s*//\s*export\s*$"#)                 // Swift 5 raw String
+    //FIXME: hide these regexps elsewhere
     
-    // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
-    let installRegexp = NSRegularExpression(#"^\s*%install '(.*)'\s(.*)$"#)         // Swift 5 raw String
+    let exportRegexp = NSRegularExpression(#"^\s*//\s*export\s*$"#)
 
+    // //executable: printMNISTShape
+    let executableRegexp = NSRegularExpression(#"^\s*//\s*executable\s+([^\s]+)\s*$"#)
+
+    // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
+    let installRegexp = NSRegularExpression(#"^\s*%install '(.*)'\s(.*)$"#)
+
+    struct CellSource {
+        var name: String? = nil     // a CellSource may or may not have an associated name
+        var lines: [String]
+        
+        init(name: String?, lines: [String]) {
+            self.name = name
+            self.lines = lines
+        }
+        
+        init(lines: [String]) {
+            self.init(name:nil, lines:lines)
+        }
+    }
+    
     /// Parse the notebook and selects the cells of interest,
     /// returning the content filtered and transformed by the supplied closure.
     /// Parsed data is not cached, so multiple calls will read from the document again.
-    func processCells(contentTransform: (_ cellSource: [String]) -> [String]?) throws -> [[String]] {
+    func processCells(contentTransform: (_ rawSource: [String]) -> CellSource?) throws -> [CellSource] {
         let data = try Data(contentsOf: filepath)
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         
@@ -33,7 +52,7 @@ public struct NotebookExport {
         }
         
         // Use compactMap to combine the filter and map we need
-        let selectedSources: [[String]] = cells.compactMap { cell in
+        let selectedSources: [CellSource] = cells.compactMap { cell in
             guard let source = cell["source"] as? [String] else { return nil }
             return contentTransform(source)     // nil to ignore this cell
         }
@@ -43,21 +62,35 @@ public struct NotebookExport {
 
     /// Parse the notebook and extract the source of the exportable cells (minus the comment line).
     /// Parsed data is not cached.
-    func extractExportableSources() throws -> [[String]] {
+    func extractExportableSources() throws -> [CellSource] {
         return try processCells { source in
             guard exportRegexp.matches(source.first) else { return nil }
-            return Array(source[1...])
+            return CellSource(lines: Array(source[1...]))
         }
     }
 
     /// Parse the notebook and extract the source of the install cells.
     /// Parsed data is not cached.
-    func extractInstallableSources() throws -> [[String]] {
+    func extractInstallableSources() throws -> [CellSource] {
         return try processCells { source in
             for line in source {
-                if installRegexp.matches(line) { return source }
+                if installRegexp.matches(line) { return CellSource(lines: source) }
             }
             return nil
+        }
+    }
+    
+    /// Parse the notebook and extract the source of the executable cells,
+    /// alongside the executable names.
+    /// Parsed data is not cached.
+    func extractExecutableSources() throws -> [CellSource] {
+        return try processCells { source in
+            guard let line = source.first else { return nil }
+            guard let match = executableRegexp.firstMatch(in: line) else { return nil }
+            guard match.numberOfRanges == 2 else { return nil }
+            guard let nameRange = Range(match.range(at: 1), in: line) else { return nil }
+            let executableName = String(line[nameRange])
+            return CellSource(name: executableName, lines: Array(source[1...]))
         }
     }
     
@@ -83,7 +116,7 @@ public struct NotebookExport {
     func extractDependencies() throws -> [DependencyDescription] {
         var dependencies: [DependencyDescription] = []
         for cellSource in try extractInstallableSources() {
-            for line in cellSource {
+            for line in cellSource.lines {
                 dependencies.append(contentsOf: dependencyFromInstallLine(line))
             }
         }
@@ -120,7 +153,7 @@ public struct NotebookExport {
             
             """
             for cellSource in try extractExportableSources() {
-                module.append("\n" + cellSource.joined() + "\n")
+                module.append("\n" + cellSource.lines.joined() + "\n")
             }
             
             try destination.parent.mkdir(.p)

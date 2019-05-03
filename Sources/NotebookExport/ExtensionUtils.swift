@@ -19,11 +19,15 @@ extension NSRegularExpression {
             preconditionFailure("Illegal regular expression: \(pattern).")
         }
     }
-    
-    func matches(_ string: String?, options: NSRegularExpression.MatchingOptions = []) -> Bool {
-        guard let string = string else { return false }
+
+    func firstMatch(in string: String?, options: NSRegularExpression.MatchingOptions = []) -> NSTextCheckingResult? {
+        guard let string = string else { return nil }
         let range = NSRange(location: 0, length: string.utf16.count)
-        return firstMatch(in: string, options: options, range: range) != nil
+        return firstMatch(in: string, options: options, range: range)
+    }
+
+    func matches(_ string: String?, options: NSRegularExpression.MatchingOptions = []) -> Bool {
+        return firstMatch(in: string, options: options) != nil
     }
 }
 
