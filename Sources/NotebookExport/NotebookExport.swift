@@ -240,7 +240,7 @@ public struct NotebookExport {
 
 // Public API
 public extension NotebookExport {
-    static let version = "0.5.0"
+    static let version = "0.6.0"
     static let defaultPackagePrefix = "FastaiNotebook_"
 
     /// Export as an independent package, prepending the specified prefix to the name
