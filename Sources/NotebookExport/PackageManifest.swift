@@ -7,18 +7,6 @@ struct PackageManifest {
     var dependencies: [DependencyDescription]
     var executableNames: [String]
 
-    // Create initializers so executableNames can be skipped
-    
-    init(packagePath: Path, dependencies: [DependencyDescription], executableNames: [String]) {
-        self.packagePath = packagePath
-        self.dependencies = dependencies
-        self.executableNames = executableNames
-    }
-
-    init(packagePath: Path, dependencies: [DependencyDescription]) {
-        self.init(packagePath: packagePath, dependencies: dependencies, executableNames: [])
-    }
-
     var packageName: String { return packagePath.basename() }
     
     var executableProducts: String {
