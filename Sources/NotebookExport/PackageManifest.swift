@@ -13,14 +13,14 @@ struct PackageManifest {
         return executableNames.map {
             ".executable(name: \($0.quoted), targets: [\($0.quoted)])"
         }
-        .joined(separator: ",\n    ")
+        .joined(separator: ",\n")
     }
     
     var executableTargets: String {
         return executableNames.map {
             ".target(name: \($0.quoted), dependencies: [\(packageName.quoted)])"
         }
-        .joined(separator: ",\n    ")
+        .joined(separator: ",\n")
     }
 
     var manifest : String {
