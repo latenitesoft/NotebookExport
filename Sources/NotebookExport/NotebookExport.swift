@@ -16,7 +16,7 @@ public struct NotebookExport {
     let exportRegexp = NSRegularExpression(#"^\s*//\s*export\s*$"#)
 
     // //executable: printMNISTShape
-    let executableRegexp = NSRegularExpression(#"^\s*//\s*executable\s+([^\s]+)\s*$"#)
+    let executableRegexp = NSRegularExpression(#"^\s*//\s*executable:\s+([^\s]+)\s*$"#)
 
     // %install '.package(url: "https://github.com/mxcl/Path.swift", from: "0.16.1")' Path
     let installRegexp = NSRegularExpression(#"^\s*%install '(.*)'\s(.*)$"#)

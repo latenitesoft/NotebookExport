@@ -37,7 +37,7 @@ public func notebookFunction()
 You can extract the code in a particular cell as an executable product in the exported package. For example, the following comment will generate a product called `ls` which you can run by issuing the command `swift run ls` inside the exported package directory.
 
 ```Swift
-//executable ls
+//executable: ls
 
 print("/bin/ls".shell("-lh"))
 ```
