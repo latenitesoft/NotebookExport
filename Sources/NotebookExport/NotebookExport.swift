@@ -153,7 +153,7 @@ public struct NotebookExport {
         
         """
         
-        return cellSources.reduce(module) { $0 + "\n" + $1.joined() + "\n" }
+        return cellSources.reduce(module) { $0 + "\n" + $1.joined(separator: "\n") + "\n" }
     }
     
     /// Export cells as a package, including dependencies
