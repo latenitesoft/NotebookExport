@@ -85,7 +85,7 @@ public struct NotebookExport {
         }
         var mergedSources: [String: ExecutableSource] = [:]
         for source in unmergedSources {
-            mergedSources[source.name, default: ExecutableSource(name: source.name, lines: [])].lines.append(contentsOf: source.lines)
+            mergedSources[source.name, default: ExecutableSource(name: source.name, lines: [])].lines.append(contentsOf: source.lines + ["\n\n"])
         }
         return Array(mergedSources.values)
     }
