@@ -1,14 +1,15 @@
 import Path
 
 extension String {
-    func findFirst(pat: String) -> Range<String.Index>? {
-        return range(of: pat, options: .regularExpression)
+    func findFirst(matching pattern: String) -> Range<String.Index>? {
+        return range(of: pattern, options: .regularExpression)
     }
     
-    func hasMatch(pat: String) -> Bool {
-        return findFirst(pat:pat) != nil
+    func matches(pattern: String) -> Bool {
+        return findFirst(matching: pattern) != nil
     }
 }
+
 import Foundation
 
 extension NSRegularExpression {
