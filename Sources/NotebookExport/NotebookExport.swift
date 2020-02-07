@@ -22,23 +22,18 @@ public struct NotebookExport {
     let installRegexp = NSRegularExpression(#"^\s*%install '(.*)'\s(.*)$"#)
 
     struct CellSource {
-        var name: String? = nil     // a CellSource may or may not have an associated name
         var lines: [String]
-        
-        init(name: String?, lines: [String]) {
-            self.name = name
-            self.lines = lines
-        }
-        
-        init(lines: [String]) {
-            self.init(name:nil, lines:lines)
-        }
+    }
+
+    struct ExecutableSource {
+        var name: String
+        var lines: [String]
     }
     
     /// Parse the notebook and selects the cells of interest,
     /// returning the content filtered and transformed by the supplied closure.
     /// Parsed data is not cached, so multiple calls will read from the document again.
-    func processCells(contentTransform: (_ rawSource: [String]) -> CellSource?) throws -> [CellSource] {
+    func processCells<Cell>(contentTransform: (_ rawSource: [String]) -> Cell?) throws -> [Cell] {
         let data = try Data(contentsOf: filepath)
         let json = try JSONSerialization.jsonObject(with: data, options: [])
         
@@ -52,12 +47,12 @@ public struct NotebookExport {
         }
         
         // Use compactMap to combine the filter and map we need
-        let selectedSources: [CellSource] = cells.compactMap { cell in
+        let selectedCells: [Cell] = cells.compactMap { cell in
             guard let source = cell["source"] as? [String] else { return nil }
             return contentTransform(source)     // nil to ignore this cell
         }
         
-        return selectedSources
+        return selectedCells
     }
 
     /// Parse the notebook and extract the source of the exportable cells (minus the comment line).
@@ -83,11 +78,16 @@ public struct NotebookExport {
     /// Parse the notebook and extract the source of the executable cells,
     /// alongside the executable names.
     /// Parsed data is not cached.
-    func extractExecutableSources() throws -> [CellSource] {
-        return try processCells { source in
+    func extractExecutableSources() throws -> [ExecutableSource] {
+        let unmergedSources = try processCells { source -> ExecutableSource? in
             guard let executableName = executableRegexp.groupsOfFirstMatch(in: source.first)?.first else { return nil }
-            return CellSource(name: executableName, lines: Array(source[1...]))
+            return ExecutableSource(name: executableName, lines: Array(source[1...]))
         }
+        var mergedSources: [String: ExecutableSource] = [:]
+        for source in unmergedSources {
+            mergedSources[source.name, default: ExecutableSource(name: source.name, lines: [])].lines.append(contentsOf: source.lines + ["\n\n"])
+        }
+        return Array(mergedSources.values)
     }
     
     func dependencyFromInstallLine(_ line: String) -> [DependencyDescription] {
@@ -131,7 +131,7 @@ public struct NotebookExport {
         case failure(reason: String)
     }
     
-    func moduleSource(for cellSources: [CellSource], inside packagePath: Path? = nil, with packageDependencies: [DependencyDescription] = []) -> String {
+    func moduleSource(for cellSources: [[String]], inside packagePath: Path? = nil, with packageDependencies: [DependencyDescription] = []) -> String {
         var allDependencyNames : [String] {
             var names = packageDependencies.map { $0.name }
             if let packagePath = packagePath { names.append(packagePath.basename()) }
@@ -153,7 +153,7 @@ public struct NotebookExport {
         
         """
         
-        return cellSources.reduce(module) { $0 + "\n" + $1.lines.joined() + "\n" }
+        return cellSources.reduce(module) { $0 + "\n" + $1.joined(separator: "\n") + "\n" }
     }
     
     /// Export cells as a package, including dependencies
@@ -164,7 +164,7 @@ public struct NotebookExport {
         let destination = packagePath/"Sources"/packageName/scriptName
         do {
             // Save main source
-            let exportableSource = try moduleSource(for: extractExportableSources())
+            let exportableSource = try moduleSource(for: extractExportableSources().map { $0.lines })
             try destination.parent.mkdir(.p)
             try exportableSource.write(to: destination, encoding: .utf8)
 
@@ -174,13 +174,12 @@ public struct NotebookExport {
             // Save executable cells
             let executableSources = try extractExecutableSources()
             var executableNames: [String] = []
-            for cellSource in executableSources {
-                guard let executableName = cellSource.name else { throw NotebookExportError.unexpectedNotebookFormat }
-                executableNames.append(executableName)
-                let executableSource = moduleSource(for: [cellSource], inside: packagePath, with: packageDependencies)
-                let destination = packagePath/"Sources"/executableName/"main.swift"
+            for executableSource in executableSources {
+                executableNames.append(executableSource.name)
+                let sourceLines = moduleSource(for: [executableSource.lines], inside: packagePath, with: packageDependencies)
+                let destination = packagePath/"Sources"/executableSource.name/"main.swift"
                 try destination.parent.mkdir(.p)
-                try executableSource.write(to: destination, encoding: .utf8)
+                try sourceLines.write(to: destination, encoding: .utf8)
             }
             
             try updatePackageSpec(at: packagePath, packageName: packageName, dependencies: packageDependencies, executableNames: executableNames)
